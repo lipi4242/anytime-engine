@@ -1,0 +1,16 @@
+[project]
+name = "anytime-engine"
+version = "0.2.2"
+description = "Concern-based proactive orchestrator engine (shared core for Thufir-family agents)"
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
