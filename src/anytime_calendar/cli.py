@@ -1,11 +1,11 @@
-"""calendar_reconcile_cli — normalize raw gws output, reconcile current.json, print the diff.
+"""anytime_calendar.cli — normalize raw gws output, reconcile the scan-cache, print the diff.
 
 The scan (Claude-driven gws) writes its raw output to a temp file and calls this;
-it never hand-edits current.json. Pure reconcile logic lives in calendar_reconcile.py.
+it never hand-edits the cache. Pure reconcile logic lives in reconcile.py.
 
 Usage (repo gyökeréből):
-   python3 -m anytime_engine.calendar_reconcile_cli \\
-       --fresh /tmp/scan.json --window-start ... --window-end ...
+   python3 -m anytime_calendar.cli \\
+       --state <your scan-cache.json> --fresh /tmp/scan.json --window-start ... --window-end ...
 """
 from __future__ import annotations
 
@@ -17,8 +17,9 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from .calendar_reconcile import Change, reconcile
-from . import config
+from anytime_engine import clock
+
+from .reconcile import Change, reconcile
 
 
 def _normalize_gws_event(raw: dict) -> dict:
@@ -71,7 +72,8 @@ def main(argv=None) -> int:
     p.add_argument("--fresh", required=True, help="Path to raw gws events JSON")
     p.add_argument("--window-start", required=True)
     p.add_argument("--window-end", required=True)
-    p.add_argument("--state", default=str(config.review_state_path()))
+    p.add_argument("--state", required=True,
+                   help="the scan-cache JSON this agent keeps its calendar in")
     p.add_argument("--now", default=None, help="ISO timestamp (tests only)")
     p.add_argument("--scanned-calendars", default=None,
                    help="Comma-separated source_calendar ids actually scanned "
@@ -100,7 +102,7 @@ def main(argv=None) -> int:
         data = {}
 
     cached = data.get("calendar_events", {}) or {}
-    now = datetime.fromisoformat(args.now) if args.now else datetime.now()
+    now = datetime.fromisoformat(args.now) if args.now else clock.now()
 
     scanned = None
     if args.scanned_calendars:

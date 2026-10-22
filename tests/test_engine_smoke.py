@@ -14,8 +14,10 @@ try:
 except Exception:  # pragma: no cover
     pytest = None
 
+sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from _engine_isolation import IsolatedTestCase  # noqa: E402
 from anytime_engine import config  # noqa: E402
 from anytime_engine.assembler import clear_providers, register_provider  # noqa: E402
 from anytime_engine.prompts import ACTION_PROMPTS, action, get_prompt  # noqa: E402
@@ -75,7 +77,7 @@ class TestReducerPlan(unittest.TestCase):
         self.assertEqual(plan["actions"], [])
 
 
-class TestStateRoundtrip(unittest.TestCase):
+class TestStateRoundtrip(IsolatedTestCase):
     def test_unknown_keys_preserved(self):
         s = State({"cache": {"a": 1}, "agent_custom_field": {"x": 2}})
         out = s.to_dict()
@@ -88,6 +90,8 @@ class TestStateRoundtrip(unittest.TestCase):
         s.save()
         loaded = State.load()
         self.assertIn("alpha", loaded.concern_last_run)
+        # Proof of isolation: the write landed in the temp root, never in cwd.
+        self.assertTrue(config.state_path().is_relative_to(self.root))
 
 
 class TestConfig(unittest.TestCase):
@@ -123,7 +127,7 @@ if __name__ == "__main__":
 class TestStaleDependencyGuard(unittest.TestCase):
     """resolve() must not force-include a stale dep whose should_run() declines.
 
-    Regression, found 2026-07-14 while migrating Thufir onto the engine: the
+    Regression, found 2026-07-14 while migrating an existing assistant onto the engine: the
     engine's resolve() force-included any *stale* dependency, ignoring its own
     should_run(). A concern that only runs on the morning review would therefore
     get pulled into an evening review by a dependent — and execute at the wrong

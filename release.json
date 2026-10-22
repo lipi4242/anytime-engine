@@ -1,0 +1,21 @@
+{
+  "component": "anytime-engine",
+  "version": "0.3.0",
+  "date": "2026-10-22",
+  "severity": "major",
+  "security": false,
+  "breaking": true,
+  "migrations_from": [
+    "0.2"
+  ],
+  "you_need_to": [
+    "THUFIR_STATE_PATH -> ANYTIME_STATE_PATH (the old name works in 0.3.x with a warning)",
+    "set ANYTIME_REVIEW_TIMES explicitly if you relied on the 08:30,17:30 default",
+    "call anytime_engine.tick from your scheduler; delete your own heartbeat / last-tick.json writes",
+    "a concern using context['review_type']: add \"review_type\" to its context_needs",
+    "declare each concern package: ANYTIME_PLUGIN = {\"name\": ..., \"engine\": \">=0.3,<0.4\"}",
+    "run python3 -m anytime_engine.verify; remove any second registry.py + reducer.py copy"
+  ],
+  "changelog": "CHANGELOG.md#030",
+  "requires_if_present": {}
+}

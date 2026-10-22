@@ -13,7 +13,7 @@ build in-memory State objects with an explicit `now`/`when` so they never touch
 the production state file.
 
 The idempotent-audit tests are NOT ported here: the review audit
-(append_review_audit / REVIEW_AUDIT) is a consumer-side (Thufir) concern, not
+(append_review_audit / REVIEW_AUDIT) is a consumer-side concern, not
 part of the domain-free engine.
 """
 
@@ -29,7 +29,10 @@ except ImportError:  # pragma: no cover
     pytest = None
 
 # Package layout: src/anytime_engine — importable when run in-place.
+sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from _engine_isolation import IsolatedTestCase  # noqa: E402
 
 from anytime_engine import config  # noqa: E402
 from anytime_engine.state import State  # noqa: E402
@@ -57,11 +60,20 @@ def tearDownModule():  # noqa: N802 — unittest hook name
             os.environ[key] = prev
 
 
+class _Iso(IsolatedTestCase):
+    """Isolated root (mark_review_serviced writes a durable receipt) plus the
+    module's window config, which IsolatedTestCase.setUp would otherwise clear."""
+
+    def setUp(self):
+        super().setUp()
+        os.environ["ANYTIME_REVIEW_WINDOWS"] = _WINDOWS_ENV
+
+
 def _dt(hhmm: str, day: str = "2026-07-10") -> datetime:
     return datetime.fromisoformat(f"{day}T{hhmm}:00")
 
 
-class TestWindowConfig(unittest.TestCase):
+class TestWindowConfig(_Iso):
     def test_windows_sorted_and_named(self):
         windows = config.review_windows()
         self.assertEqual([n for n, _ in windows],
@@ -79,7 +91,7 @@ class TestWindowConfig(unittest.TestCase):
         )
 
 
-class TestWindowModel(unittest.TestCase):
+class TestWindowModel(_Iso):
     def test_current_window_boundaries(self):
         cw = State._current_window
         self.assertIsNone(cw(_dt("03:00")))            # before first window
@@ -103,7 +115,7 @@ class TestWindowModel(unittest.TestCase):
         self.assertEqual(s.review_type(_dt("03:00")), "morning")  # pre-first default
 
 
-class TestReviewDue(unittest.TestCase):
+class TestReviewDue(_Iso):
     def test_due_when_current_window_unserviced(self):
         s = State()
         self.assertTrue(s.review_due(_dt("13:00")))   # midday open, unserviced
@@ -136,7 +148,7 @@ class TestReviewDue(unittest.TestCase):
         self.assertTrue(s.review_due(_dt("22:05")))     # end_of_day opens
 
 
-class TestBackwardCompat(unittest.TestCase):
+class TestBackwardCompat(_Iso):
     def test_derives_serviced_from_last_review_at(self):
         # Old state files have no reviews_serviced; derive from last_review_at so
         # the live loop transitions without a duplicate on the refactor deploy.
@@ -156,7 +168,7 @@ class TestBackwardCompat(unittest.TestCase):
         self.assertTrue(s.review_due(_dt("13:00")))     # today's midday still due
 
 
-class TestMissedWindows(unittest.TestCase):
+class TestMissedWindows(_Iso):
     def test_missed_windows_listed(self):
         s = State()  # nothing serviced today
         self.assertEqual(s.missed_review_windows(_dt("17:00")), ["morning", "midday"])
@@ -168,7 +180,7 @@ class TestMissedWindows(unittest.TestCase):
         self.assertEqual(s.missed_review_windows(_dt("17:00")), [])
 
 
-class TestPruneServiced(unittest.TestCase):
+class TestPruneServiced(_Iso):
     def test_old_dates_pruned(self):
         s = State({"reviews_serviced": {"2026-07-01": ["morning"]}})
         s.mark_review_serviced(when=_dt("13:00"))
@@ -176,7 +188,7 @@ class TestPruneServiced(unittest.TestCase):
         self.assertIn("2026-07-10", s.reviews_serviced)
 
 
-class TestSummaryExposesServiced(unittest.TestCase):
+class TestSummaryExposesServiced(_Iso):
     def test_summary_lists_serviced_today(self):
         s = State()
         s.mark_review_serviced(when=_dt("06:00"))       # morning

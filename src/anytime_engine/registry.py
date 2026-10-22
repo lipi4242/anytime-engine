@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
-import pkgutil
 import sys
 from dataclasses import dataclass, field
 from typing import Callable, Any
@@ -68,35 +66,29 @@ def clear() -> None:
     _CONCERNS.clear()
 
 
-def discover(plugin_packages: list[str] | None = None) -> None:
-    """Auto-discover and import all concern and provider modules.
+def discover(plugin_packages: list[str] | None = None) -> list:
+    """Load the agent's concern packs (plugins.load: the pack contract).
 
-    `plugin_packages` is the list of package dotted-paths holding the agent's
-    concern/provider modules (e.g. ["scripts.anytime.v2.concerns",
-    "scripts.anytime.v2.providers"]). Falls back to the ANYTIME_PLUGINS env
-    var (comma-separated). The engine has no default — the agent repo must
-    say where its plugins live.
-
-    Reloads already-imported modules so that self-registration
-    decorators re-fire after a registry clear (important for testing).
+    `plugin_packages`: dotted package names (e.g. ["myagent.concerns",
+    "myagent.providers"]); falls back to ANYTIME_PLUGINS (comma-separated),
+    then to mentat.json components.engine.plugins.
+    The engine has no default — the agent repo must say where its packs live.
+    Already-imported modules are reloaded, so self-registration re-fires after
+    a registry clear (important for testing). Returns the PluginInfo list.
     """
     import os
+    from . import engine_manifest, plugins
     if plugin_packages is None:
         raw = os.environ.get("ANYTIME_PLUGINS", "")
         plugin_packages = [p.strip() for p in raw.split(",") if p.strip()]
     if not plugin_packages:
+        plugin_packages = engine_manifest.plugins()
+    if not plugin_packages:
         raise ValueError(
-            "discover(): no plugin packages — pass plugin_packages or set ANYTIME_PLUGINS"
+            "discover(): no plugin packages — pass plugin_packages, set ANYTIME_PLUGINS, "
+            "or list them in mentat.json components.engine.plugins"
         )
-
-    for pkg_name in plugin_packages:
-        pkg = importlib.import_module(pkg_name)
-        for _importer, modname, _ispkg in pkgutil.iter_modules(pkg.__path__):
-            full_name = f"{pkg_name}.{modname}"
-            if full_name in sys.modules:
-                importlib.reload(sys.modules[full_name])
-            else:
-                importlib.import_module(full_name)
+    return plugins.load(plugin_packages)
 
 
 def find_foreign_registries() -> list[tuple[str, list[str]]]:
@@ -147,8 +139,10 @@ def validate() -> list[str]:
             if dep not in _CONCERNS:
                 errors.append(f"'{name}' depends on unknown concern '{dep}'")
 
-    # Check for cycles
-    dep_graph = {name: c.depends_on for name, c in _CONCERNS.items()}
+    # Check for cycles — over the known edges only: an unknown dep is already
+    # reported above, and topo_sort would raise on it instead of returning.
+    dep_graph = {name: [d for d in c.depends_on if d in _CONCERNS]
+                 for name, c in _CONCERNS.items()}
     try:
         topo_sort(dep_graph)
     except CyclicDependencyError as e:

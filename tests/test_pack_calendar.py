@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Test suite for calendar_reconcile.
+"""Tests for the optional calendar pack (anytime_calendar).
 
-Compatible with both pytest and direct execution:
-    pytest packages/anytime-engine/tests/ -v
-    python3 packages/anytime-engine/tests/test_calendar_reconcile.py
+Not part of the engine core since 0.3.0. In a consumer that did not vendor the
+pack these tests skip; where the pack is present they run.
+
+Compatible with both pytest and direct execution (stdlib unittest).
 """
 import json
 import os
@@ -21,10 +22,13 @@ except Exception:  # pragma: no cover
 # Package layout: src/anytime_engine — make it importable when run in-place.
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from anytime_engine.calendar_reconcile import changes_since, reconcile  # noqa: E402
-from anytime_engine.calendar_reconcile_cli import (  # noqa: E402
-    main, _normalize_gws_event, _prune,
-)
+try:
+    from anytime_calendar.reconcile import changes_since, reconcile  # noqa: E402
+    from anytime_calendar.cli import (  # noqa: E402
+        main, _normalize_gws_event, _prune,
+    )
+except ImportError:  # pack not vendored into this repo
+    raise unittest.SkipTest("anytime_calendar pack not present")
 
 WS = "2026-06-01T00:00:00+00:00"
 WE = "2026-06-30T00:00:00+00:00"
@@ -60,7 +64,7 @@ class TestReconcile(unittest.TestCase):
         # this run must be preserved, not deleted (no evidence it vanished).
         cached = {
             "t": {**_ev("t", "2026-06-05T10:00:00+02:00"),
-                  "source_calendar": "someone@other-domain.example"},
+                  "source_calendar": "someone@example.org"},
             "p": {**_ev("p", "2026-06-06T10:00:00+02:00"),
                   "source_calendar": "primary@example.com"},
         }
@@ -77,7 +81,7 @@ class TestReconcile(unittest.TestCase):
         # scanned_calendars=None (the default) removes as before regardless of
         # any source_calendar tag — full backward compatibility.
         cached = {"a": {**_ev("a", "2026-06-05T10:00:00+02:00"),
-                        "source_calendar": "x@y.com"}}
+                        "source_calendar": "x@example.net"}}
         updated, _ = reconcile([], cached, WS, WE, NOW)
         self.assertNotIn("a", updated)
 
@@ -184,7 +188,7 @@ class TestCLI(unittest.TestCase):
         rc = main(["--fresh", self.fresh, "--state", self.state,
                    "--window-start", WS, "--window-end", WE, "--now", "2026-06-08T09:00:00"])
         self.assertEqual(rc, 0)
-        data = json.load(open(self.state))
+        data = json.loads(Path(self.state).read_text())
         self.assertIn("B", data["calendar_events"])
         self.assertNotIn("A", data["calendar_events"])
         types = sorted(c["type"] for c in data["calendar_changes"])

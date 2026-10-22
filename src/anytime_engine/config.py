@@ -5,18 +5,33 @@ The hosting repo configures it either by calling `set_repo_root()` early
 (e.g. in its entry point or local package __init__), or via env vars:
 
   ANYTIME_REPO_ROOT      — repo root (default: cwd)
-  ANYTIME_REVIEW_TIMES   — comma-separated HH:MM list (default: "08:30,17:30")
+  ANYTIME_REVIEW_TIMES   — comma-separated HH:MM list (default: none — an agent
+                           with no review configured never has a review due)
   ANYTIME_REVIEW_WINDOWS — named windows "name:HH:MM,name:HH:MM" (overrides the
                            auto-naming of ANYTIME_REVIEW_TIMES; lets a repo pin
                            exact names like morning/midday/evening/end_of_day)
-  THUFIR_STATE_PATH      — state file override (kept for back-compat; tests use it)
+  ANYTIME_STATE_PATH     — state file override
+                           (default: <root>/data/state/anytime-state.json)
+  THUFIR_STATE_PATH      — DEPRECATED alias of ANYTIME_STATE_PATH (0.3.x only)
+  ANYTIME_RECEIPTS_PATH  — receipts file (default: beside the state file)
+  ANYTIME_STATE_RESTORE_MAX_GAP_MIN — max history an automatic backup restore
+                           may lose (default 180)
 """
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 _repo_root: Path | None = None
+_warned: set[str] = set()
+
+
+def warn_once(key: str, message: str) -> None:
+    """One stderr line per process per key — loud in the tick log, not spammy."""
+    if key not in _warned:
+        _warned.add(key)
+        print(f"[anytime-engine] {message}", file=sys.stderr)
 
 
 def set_repo_root(path: Path | str) -> None:
@@ -36,7 +51,7 @@ def repo_root() -> Path:
 
 def review_times() -> list[str]:
     """Daily review times (HH:MM). Read lazily so tests/repos can override."""
-    raw = os.environ.get("ANYTIME_REVIEW_TIMES", "08:30,17:30")
+    raw = os.environ.get("ANYTIME_REVIEW_TIMES", "")
     return [t.strip() for t in raw.split(",") if t.strip()]
 
 
@@ -89,18 +104,67 @@ def review_windows() -> list[tuple[str, str]]:
     return windows
 
 
+def default_state_path() -> Path:
+    """Where state lives when nothing overrides it: next to the heartbeat and
+    last-tick.json, so one gitignore line (data/state/) covers all runtime files."""
+    return repo_root() / "data" / "state" / "anytime-state.json"
+
+
+def legacy_state_path() -> Path:
+    """The pre-0.3 default. Read once by State.load() to migrate forward."""
+    return repo_root() / "scripts" / "anytime" / "anytime-state-v2.json"
+
+
 def state_path() -> Path:
-    """The orchestrator state file. THUFIR_STATE_PATH wins (test isolation)."""
-    env = os.environ.get("THUFIR_STATE_PATH")
+    """The orchestrator state file. ANYTIME_STATE_PATH wins; THUFIR_STATE_PATH is
+    honoured for one more minor release, with a warning."""
+    env = os.environ.get("ANYTIME_STATE_PATH")
     if env:
         return Path(env)
-    return repo_root() / "scripts" / "anytime" / "anytime-state-v2.json"
+    old = os.environ.get("THUFIR_STATE_PATH")
+    if old:
+        warn_once("THUFIR_STATE_PATH",
+                  "THUFIR_STATE_PATH is deprecated and will be removed in 0.4 — "
+                  "rename it to ANYTIME_STATE_PATH.")
+        return Path(old)
+    return default_state_path()
 
 
 def heartbeat_path() -> Path:
     return repo_root() / "data" / "state" / "orchestrator-heartbeat.json"
 
 
+def last_tick_path() -> Path:
+    """Fleet contract: mtime = when a SCHEDULED tick last landed (after its work)."""
+    return repo_root() / "data" / "state" / "last-tick.json"
+
+
+def plan_path() -> Path:
+    """The most recent plan a tick produced (input for the executor, not a stamp)."""
+    return repo_root() / "data" / "state" / "last-plan.json"
+
+
 def review_state_path() -> Path:
-    """The scan-cache (calendar/email) written by scan concerns."""
+    """DEPRECATED (0.3): the calendar scan-cache path of the assistant this engine
+    was extracted from. Kept one release so an un-cleaned vendored
+    calendar_reconcile_cli keeps importing; the calendar pack takes --state."""
+    warn_once("review_state_path",
+              "config.review_state_path() is deprecated and will be removed in 0.4 — "
+              "the calendar pack (anytime_calendar) takes an explicit --state path.")
     return repo_root() / "scripts" / "review-state" / "current.json"
+
+
+def receipts_path() -> Path:
+    """Durable operation receipts (receipts.py) — beside the state file, so the
+    test isolation of the state path isolates them too."""
+    env = os.environ.get("ANYTIME_RECEIPTS_PATH")
+    return Path(env) if env else state_path().parent / "anytime-receipts.jsonl"
+
+
+def restore_max_gap_minutes() -> float:
+    """How much history a backup restore may lose: the gap between the lost
+    write and the backup's mtime (default 180 min = three hourly ticks)."""
+    try:
+        return float(os.environ.get("ANYTIME_STATE_RESTORE_MAX_GAP_MIN", "180"))
+    except ValueError:
+        return 180.0

@@ -10,6 +10,14 @@ from .state import State
 # Provider registry: name -> callable that returns data
 _PROVIDERS: dict[str, Callable[..., Any]] = {}
 
+# Engine-owned providers over the state itself. Always present (clear_providers
+# keeps them); a registered provider of the same name overrides one.
+# `review_type` replaced the reducer's special case for a concern NAMED
+# review_email: any concern that wants it lists it in context_needs.
+BUILTIN_PROVIDERS: dict[str, Callable[..., Any]] = {
+    "review_type": lambda state: state.review_type(),
+}
+
 
 def provider(name: str):
     """Decorator to register a context provider."""
@@ -25,12 +33,17 @@ def register_provider(name: str, fn: Callable[..., Any]) -> None:
 
 
 def get_provider(name: str) -> Callable[..., Any] | None:
-    """Get a registered provider."""
-    return _PROVIDERS.get(name)
+    """Get a registered (or built-in) provider."""
+    return _PROVIDERS.get(name) or BUILTIN_PROVIDERS.get(name)
 
 
 def all_providers() -> dict[str, Callable[..., Any]]:
-    """Return all registered providers."""
+    """Return all providers, built-ins included."""
+    return {**BUILTIN_PROVIDERS, **_PROVIDERS}
+
+
+def registered_providers() -> dict[str, Callable[..., Any]]:
+    """Providers registered by code (built-ins excluded)."""
     return dict(_PROVIDERS)
 
 
@@ -48,7 +61,7 @@ def assemble(context_needs: list[str], state: State) -> dict[str, Any]:
     context: dict[str, Any] = {}
 
     for need in context_needs:
-        p = _PROVIDERS.get(need)
+        p = get_provider(need)
         if p is None:
             context[need] = {"error": f"No provider registered for '{need}'"}
             continue

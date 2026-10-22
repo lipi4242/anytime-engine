@@ -1,4 +1,4 @@
-"""calendar_reconcile — authoritative window reconciliation of the calendar cache.
+"""anytime_calendar.reconcile — authoritative window reconciliation of the calendar cache.
 
 Pure logic only. The scan stays Claude-driven (gws); this module owns the
 set-diff so it is deterministic and tested. This removes the historic bug where
@@ -6,10 +6,9 @@ the scan only ever *added* events and never noticed deletions or moves (an event
 deleted-and-recreated keeps a new id, so the old one lingered).
 
 The CLI (normalize raw gws output, reconcile current.json, print the diff) lives
-in calendar_reconcile_cli.py to keep this module pure and import-cheap for the
+in cli.py to keep this module pure and import-cheap for the
 providers/concerns that only need reconcile()/changes_since().
 
-Spec: docs/superpowers/specs/2026-06-08-calendar-reconciliation-design.md
 """
 from __future__ import annotations
 

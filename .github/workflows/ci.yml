@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests
+        run: |
+          python3 -m pip install pytest
+          python3 -m pytest -q
+      - name: Quickstart, as in the README
+        run: |
+          repo="$PWD"
+          mkdir "$RUNNER_TEMP/agent" && cd "$RUNNER_TEMP/agent"
+          git init -q
+          "$repo/sync-to.sh" . --pack cases
+          python3 -m anytime_engine.selftest
+          ANYTIME_PLUGINS=anytime_cases python3 -m anytime_engine.tick hourly --dry-run > plan.json
+          python3 -c "import json; print(len(json.load(open('plan.json'))['actions']), 'actions')"
+          test -z "$(git status --short | grep -v -e anytime_engine/ -e anytime_cases/ -e plan.json)"
