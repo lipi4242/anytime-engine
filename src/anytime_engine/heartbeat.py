@@ -101,6 +101,8 @@ def is_stale(threshold_min: int = DEFAULT_FRESHNESS_MIN) -> bool:
         last_dt = datetime.fromisoformat(last)
     except (ValueError, TypeError):
         return True
+    if last_dt.tzinfo is not None:  # written by a patched/newer writer: to machine-local naive
+        last_dt = last_dt.astimezone().replace(tzinfo=None)
     return datetime.now() - last_dt > timedelta(minutes=threshold_min)
 
 

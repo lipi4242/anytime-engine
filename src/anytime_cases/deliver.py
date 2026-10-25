@@ -25,7 +25,8 @@ from typing import Any
 
 from anytime_engine import config, engine_manifest, tick
 
-from . import delivery, quiet, render, telegram
+from . import acceptance, delivery, quiet, telegram
+from .messages import listed as _listed, messages as _messages
 
 OWN = ("cases_morning", "cases_deadline")
 
@@ -43,28 +44,6 @@ def _send(root: Path, cfg: dict[str, Any], day: str, text: str) -> None:
         fh.write(text + "\n")
     if text not in out.read_text(encoding="utf-8"):
         raise telegram.SendError(f"{out}: written text not found on read-back")
-
-
-def _messages(action: dict[str, Any], day: str, lang: str | None,
-              covered: set) -> list[tuple[str, str | None]]:
-    """[(mark, text)] — text None: nothing (new) to say, the mark alone is the delivery."""
-    ctx = action.get("context") or {}
-    if action["concern"] == "cases_morning":
-        due = ctx.get("cases.due") or {}
-        if "error" in due:   # notice once a day; the morning itself stays owed
-            return [(delivery.mark_name(f"cases_morning_error:{day}"),
-                     render.unavailable(due["error"], lang))]
-        return [(due["mark"], render.morning(due, lang))]
-    return [(s["mark"], None if (s.get("case_id"), s.get("due_at")) in covered
-             else render.signal(s, lang)) for s in ctx.get("cases.signals") or []]
-
-
-def _listed(action: dict[str, Any]) -> set:
-    """Occurrences a morning summary names: a signal for them in the same plan
-    would say it twice, so it is marked without a second message."""
-    due = (action.get("context") or {}).get("cases.due") or {}
-    return {(o.get("case_id"), o.get("due_at"))
-            for k in ("overdue", "today", "week") for o in due.get(k) or []}
 
 
 def _mark(name: str) -> None:
@@ -89,11 +68,17 @@ def run(plan: dict[str, Any], *, preview: bool = False) -> int:
             print(f"[deliver] not a cases action, left alone: {action.get('concern')}",
                   file=sys.stderr)
             continue
-        for mark, text in _messages(action, day, cfg.get("lang"), covered):
+        for mark, text, items, what, part in _messages(action, day, cfg.get("lang"), covered):
             if preview:
                 print(text or f"({mark}: nothing new to send)")
+                if text:
+                    print("\n".join(acceptance.preview_lines(root, cfg.get("lang"), text, items, part)))
             elif mark not in done:
                 try:
+                    if text and not acceptance.allowed(
+                            root, cfg.get("lang"), mark, text, items, what, part, done,
+                            lambda note: _send(root, cfg, day, note), _mark):
+                        continue
                     if text:
                         _send(root, cfg, day, text)
                 except telegram.SendError as e:

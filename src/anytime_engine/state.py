@@ -135,7 +135,7 @@ class State(ReviewWindowsMixin):
         if not last:
             return True
         threshold = threshold_minutes if threshold_minutes is not None else DEFAULT_STALENESS_MINUTES
-        last_dt = datetime.fromisoformat(last)
+        last_dt = clock.read(last)
         return self.now() - last_dt > timedelta(minutes=threshold)
 
     def mark_run(self, concern_name: str, result: str = "ok", *, durable: bool = True) -> None:
@@ -161,7 +161,7 @@ class State(ReviewWindowsMixin):
         ts = self.cache_timestamps.get(key)
         if not ts:
             return None
-        age = self.now() - datetime.fromisoformat(ts)
+        age = self.now() - clock.read(ts)
         if age > timedelta(minutes=max_age_minutes):
             return None
         return self.cache.get(key)

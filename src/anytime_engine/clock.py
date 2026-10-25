@@ -61,6 +61,16 @@ def parse(text: str) -> datetime:
     local; one with an offset is converted into the agent's zone."""
     if text in ("", "now"):
         return now()
+    return read(text)
+
+
+def read(text: str) -> datetime:
+    """A stored stamp as agent-local naive time, so it can be compared with now().
+
+    State written by older agents holds naive stamps, newer writers (receipts,
+    `stamp`, patched 0.2 engines) hold offset stamps; both must read back
+    without a naive-minus-aware TypeError. Raises ValueError/TypeError like
+    `datetime.fromisoformat` on garbage."""
     t = datetime.fromisoformat(text)
     if t.tzinfo is None:
         return t

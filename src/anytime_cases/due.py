@@ -19,7 +19,7 @@ from typing import Any
 from anytime_engine import config
 from anytime_engine.assembler import register_provider
 
-from . import delivery, source
+from . import csvsource, delivery, source
 from .recurrence import RecurrenceError, occurrences
 
 WEEK = 7
@@ -59,7 +59,8 @@ def open_dates(case: dict[str, Any], until: date) -> list[date]:
 def _occ(c: dict[str, Any], d: date, today: date) -> dict[str, Any]:
     return {"case_id": c["case_id"], "title": c["title"], "status": c["status"],
             "description": c.get("description"), "next_action": c.get("next_action"),
-            "due_at": d.isoformat(), "days": (d - today).days, "ref": c["ref"]}
+            "due_at": d.isoformat(), "days": (d - today).days, "ref": c["ref"],
+            **{k: c[k] for k in ("contract", "row") if c.get(k)}}
 
 
 def _waiting(c: dict[str, Any]) -> dict[str, Any]:
@@ -105,6 +106,11 @@ def compute(state) -> dict[str, Any]:
         result = _from_admin(root, today, until)
     else:
         result = _from_markdown(root, today, until)
+    rows, bad = csvsource.load(root)   # read-only tables, whichever backend holds the cases
+    result["occ"] += [_occ(r, date.fromisoformat(r["due_at"]), today) for r in rows
+                      if date.fromisoformat(r["due_at"]) <= until]
+    result["invalid"] += bad
+    result["scanned"] = dict(result.get("scanned") or {}, csv_rows=len(rows))
     result["occ"].sort(key=lambda o: (o["due_at"], o["case_id"]))
     state._cases_memo = (state.now(), result)
     return result

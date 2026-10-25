@@ -1,7 +1,8 @@
 """setup — everything after `sync-to.sh`, in one command (a dry run unless --install).
 
     python3 -m anytime_engine.setup --tz Europe/Budapest [--morning 07:00]
-        [--deliver file|telegram] [--lang en|hu] [--install] [--cron] [--verbose]
+        [--deliver file|telegram] [--lang en|hu] [--expect TEXT]... [--install [--no-timer]] [--cron] [--verbose]
+    python3 -m anytime_engine.setup --doctor     # installed units vs generated (doctor.py), read only
 
 Prints ~8 lines (what was recorded, selftest, timer, next step); --verbose adds the
 settings and the full unit files. A refusal or a red selftest is printed whole.
@@ -11,9 +12,9 @@ settings and the full unit files. A refusal or a red selftest is printed whole.
    names only, never values) — `python3 -m anytime_cases.deliver --find-chat --save`;
    --quiet-hours (default 22:00-07:00, or off): no Telegram message in that window
 3. runs the selftest
-4. records timezone, morning, delivery and the executor in mentat.json
-   components.engine (with --install)
-5. installs the hourly timer (schedule.py) — unless the fleet owns the schedule:
+4. records timezone, morning, delivery (+ --expect: what every output must contain; kept on a
+   re-run, read by the brain's done-check) and the executor in components.engine (--install)
+5. installs the hourly timer (schedule.py) — unless --no-timer or the fleet owns the schedule:
    then the fleet's tick picks up the recorded executor by itself
 
 The morning summary goes out on the first tick at/after `morning` in `--tz`;
@@ -28,7 +29,7 @@ import io
 import subprocess
 import sys
 
-from . import agents_block, config, engine_manifest as em, mentat_manifest as mm, report_setup as report, schedule, clock
+from . import agents_block, config, doctor, engine_manifest as em, mentat_manifest as mm, report_setup as report, schedule, clock
 
 CASES = "anytime_cases"
 DELIVER = "python3 -m anytime_cases.deliver"
@@ -49,9 +50,9 @@ def _quiet_ok(raw: str) -> None:
 
 
 def _settings(args, plugins: list[str]) -> dict:
-    data = {"timezone": args.tz, "morning": args.morning,
-            "delivery": {"channel": args.deliver, "lang": args.lang},
-            "quiet_hours": args.quiet_hours}
+    expect = args.expect or (em.section().get("delivery") or {}).get("expect") or []
+    data = {"timezone": args.tz, "morning": args.morning, "quiet_hours": args.quiet_hours,
+            "delivery": {"channel": args.deliver, "lang": args.lang, **({"expect": expect} if expect else {})}}
     if CASES in plugins:
         data["exec"] = DELIVER
     return data
@@ -60,19 +61,27 @@ def _settings(args, plugins: list[str]) -> dict:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python3 -m anytime_engine.setup",
                                 description="Install the engine's schedule and delivery.")
-    p.add_argument("--tz", required=True, help="IANA timezone of the user, e.g. Europe/Budapest")
+    p.add_argument("--tz", help="IANA timezone of the user, e.g. Europe/Budapest (required unless --doctor)")
+    p.add_argument("--doctor", action="store_true", help="compare the installed units with the generated ones")
     p.add_argument("--morning", default="07:00", help="local time of the morning summary")
     p.add_argument("--deliver", choices=("file", "telegram"), default="file")
     p.add_argument("--lang", choices=("en", "hu"), default="en")
+    p.add_argument("--expect", action="append", default=[], help="text every scheduled output must contain")
     p.add_argument("--quiet-hours", default="22:00-07:00",
                    help="local HH:MM-HH:MM when no Telegram message goes out, or off")
     p.add_argument("--install", action="store_true", help="record + install (else: dry run)")
     p.add_argument("--cron", action="store_true", help="a crontab line instead of systemd")
+    p.add_argument("--no-timer", action="store_true",
+                   help="with --install: record the settings, install no timer (a server or the fleet runs ticks)")
     p.add_argument("--verbose", action="store_true", help="also print the settings and the schedule plan")
     p.add_argument("--unit-dir", default=None, help=argparse.SUPPRESS)
     p.add_argument("--no-enable", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--no-selftest", action="store_true", help=argparse.SUPPRESS)
     args = p.parse_args(argv)
+    if args.doctor:
+        return doctor.run(args.unit_dir)
+    if not args.tz:
+        p.error("--tz is required")
 
     def refuse(msg: str) -> int:
         print(f"setup: NOT done — {msg}", file=sys.stderr)
@@ -120,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
     if owner == "fleet":
         lines.append("schedule: the fleet runs this agent's tick (components.engine.exec); "
                      "no engine timer installed")
+        return report.done(lines, args, 0)
+    if args.no_timer:
+        lines.append("timer: not installed (--no-timer); later: setup --install, or the fleet runs the tick")
         return report.done(lines, args, 0)
     cap_out, cap_err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(cap_out), contextlib.redirect_stderr(cap_err):

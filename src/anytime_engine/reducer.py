@@ -91,7 +91,7 @@ def _skip_reason(concern_name: str, state: State, now: datetime) -> str:
     """Human-readable reason why a concern was skipped."""
     last = state.concern_last_run.get(concern_name)
     if last:
-        age = now - datetime.fromisoformat(last)
+        age = now - clock.read(last)
         minutes = int(age.total_seconds() / 60)
         return f"ran {minutes} min ago"
     return "should_run returned False"

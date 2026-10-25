@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.1
+
+Released together with the Mentat brain 0.3.1 and fleet 0.3.1. Not breaking.
+
+### Added
+- **Deadlines straight from a table**: the cases pack reads a CSV list of deadlines
+  (`mentat.json` `components.engine.csv_deadlines`: name, path, key, title and due columns, an
+  optional filter), read only, next to any `cases.backend`. Every kept row is a one-off case in the
+  morning summary, the reminders and `preview`; an unreadable row is listed as `file:line` and the
+  rest still counts. <!-- cap: csv-deadlines -->
+- **Scheduled messages are checked before they are sent**: a case, a todo or a CSV table can carry
+  `contract: <id>`, an agreement the user approved in the brain. Before sending, the executor
+  checks the message against it; a mismatch is held back and stays owed until it passes.
+  <!-- cap: engine-acceptance -->
+- **`setup --doctor`**: it compares the installed timers with what `setup --install` would write
+  now: `OK`, `MISSING`, `HAND-EDITED` (with the differing lines) or `NOT MANAGED`, and the one
+  line that fixes it. Read only. <!-- cap: setup-doctor -->
+- **The schedule remembers what each output must contain**: `setup --expect "<text>"` stores what
+  every scheduled message must hold, such as the people to call. When nothing is stored, setup asks
+  for it, and the brain's checks read it from there. A re-run without `--expect` keeps it.
+  <!-- cap: setup-expect -->
+
+### Changed
+- **Faster install**: `setup --install --no-timer` records the settings without a timer (for
+  a server or the fleet that runs the tick); a handwritten `due:` in a case is read as an alias of
+  `due_at`; the README's install clones the release tag instead of the default branch.
+  <!-- cap: setup-no-timer -->
+
 ## 0.3.0 — 2026-10-22
 
 **Breaking.** Pre-1.0, so the break goes in the minor version: the default state path, the

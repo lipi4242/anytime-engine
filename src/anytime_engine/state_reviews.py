@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from . import config, receipts
+from . import clock, config, receipts
 
 
 class ReviewWindowsMixin:
@@ -38,7 +38,7 @@ class ReviewWindowsMixin:
         serviced = set(self.reviews_serviced.get(today, []))
         if not serviced and self.last_review_at:
             try:
-                last = datetime.fromisoformat(self.last_review_at)
+                last = clock.read(self.last_review_at)
             except (ValueError, TypeError):
                 return serviced
             if last.strftime("%Y-%m-%d") == today:

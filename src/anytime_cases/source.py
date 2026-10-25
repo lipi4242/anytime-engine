@@ -17,7 +17,7 @@ from anytime_engine import mentat_manifest as mm
 from . import frontmatter, todos
 
 FIELDS = ("title", "description", "status", "next_action", "due_at",
-          "recurrence", "anchor_at", "occurrences")
+          "recurrence", "anchor_at", "occurrences", "contract")
 
 
 class CasesUnavailable(Exception):
@@ -42,6 +42,12 @@ def load(root: Path) -> tuple[str, list[dict[str, Any]], list[dict[str, str]]]:
 
 def _normal(raw: dict[str, Any], case_id: Any, ref: Any) -> dict[str, Any]:
     out = {k: raw.get(k) for k in FIELDS}
+    # due_at is canonical; `due` (the todo's name, written by hand into a case) is its alias
+    if not out["due_at"] and raw.get("due"):
+        out["due_at"] = raw["due"]
+    if isinstance(out["occurrences"], list):
+        out["occurrences"] = [dict(o, due_at=o["due"]) if isinstance(o, dict) and not o.get("due_at")
+                              and o.get("due") else o for o in out["occurrences"]]
     # waiting_on left the case model (status waiting + next_action says it);
     # an older file's value still names what we wait for.
     if not out["next_action"] and raw.get("waiting_on"):

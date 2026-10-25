@@ -12,6 +12,10 @@ def summary(args, data: dict, selftest: str) -> list[str]:
             f"morning={args.morning}, delivery={args.deliver}/{args.lang}, "
             f"quiet={args.quiet_hours}")
     lines = [head, selftest]
+    expect = (data.get("delivery") or {}).get("expect")
+    lines.append("expect: %s" % ", ".join(repr(e) for e in expect) if expect else
+                 "expect: none — what must every output contain (e.g. the people to call)? Ask the USER, then "
+                 "re-run with --expect \"<text>\": the done-check reads it from here")
     if args.verbose:
         lines.append(f"components.engine {'=' if args.install else 'would be'} {data}")
     return lines
