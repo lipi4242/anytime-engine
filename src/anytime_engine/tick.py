@@ -26,6 +26,8 @@ or the fleet's — runs the same executor.
 Without --exec the plan is printed as JSON; with --exec stdout is the executor's
 log plus one summary line. `--dry-run` decides and prints but writes nothing — use it while setting up, so
 the setup never consumes the first real tick.
+While an outward hold is active (hold.py, data/state/kifele-tartas.json) every
+tick IS such a dry run, and says so: "kifelé-tartás aktív — dry-run, eddig: …".
 """
 from __future__ import annotations
 
@@ -38,7 +40,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from . import clock, config, heartbeat
+from . import clock, config, heartbeat, hold
 from . import engine_manifest
 from . import mentat_manifest as mm
 from .plugins import PluginError
@@ -76,11 +78,18 @@ def run_tick(trigger: str, *, executor: Executor | None = None,
     if errors:
         raise TickError("registry invalid: " + "; ".join(errors))
 
+    held = hold.active()   # the outward hold turns every tick into a dry run
+    if held:
+        print(f"[tick] {hold.banner(held)}", file=sys.stderr)
+        dry_run = True
+
     try:
         state = State.load(migrate=not dry_run)
     except StateUnavailable as e:
         raise TickError(f"state unavailable, failing closed: {e}") from e
     plan = reduce(trigger, state, now=now)
+    if held:
+        plan["kifele_tartas"] = held
     if dry_run:
         return plan
 
@@ -181,7 +190,10 @@ def main(argv: list[str] | None = None) -> int:
     except TickError as e:
         print(f"[tick] NOT landed: {e}", file=sys.stderr)
         return 1
-    if executor is None:
+    if plan.get("kifele_tartas"):
+        print(f"[tick] {args.trigger} NOT landed (kifelé-tartás): {len(plan['actions'])} "
+              "action(s) held back, nothing sent, no stamp", file=sys.stderr)
+    if executor is None or plan.get("kifele_tartas"):
         print(json.dumps(plan, indent=2, ensure_ascii=False, default=str))
     else:   # stdout belongs to the executor's log; the plan is in last-plan.json
         print(f"[tick] {args.trigger} landed: {len(plan['actions'])} action(s)")

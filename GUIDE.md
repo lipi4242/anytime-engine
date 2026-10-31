@@ -151,7 +151,7 @@ plan = reduce("hourly", state)            # → ordered action plan
 ```
 
 Each concern package declares itself in its `__init__.py` —
-`ANYTIME_PLUGIN = {"name": "myagent", "engine": ">=0.3,<0.4"}` — and must live inside your repo.
+`ANYTIME_PLUGIN = {"name": "myagent", "engine": ">=0.4,<0.5"}` — and must live inside your repo.
 The engine refuses a pack outside the repo, an engine outside the declared range, and two packs
 that claim the same pack, concern or provider name (a duplicate provider used to overwrite
 silently). Undeclared packages still load, with a warning.
@@ -288,6 +288,105 @@ behaviour (e.g. a `state.py` you've customised) stay local and untouched.
    The suite that catches it is yours.
 
 </details>
+
+## The todo pack: recurring duties
+
+> **Not usable yet on its own:** the todo pack needs the Mentat Admin todo plugin, which is not public yet. Without it the pack does nothing, and recurring duties stay where they are today (a cron job or a concern).
+
+Every recurring duty of an agent is a repeating todo in the Mentat Admin todo plugin, not a cron job and not a concern of its own. `anytime_todo` is the one generic concern (`todo_esedekes`) that reads them, so a new duty is a new todo, never new engine code.
+
+### Rule of thumb
+
+| The duty | Where it lives |
+|---|---|
+| fixed cadence: weekly reminder, morning round, monthly check | a repeating todo (`repeat_rule`), ball with the agent |
+| driven by an external event (new e-mail, a webhook, a calendar change) | a concern |
+| needs deterministic computation every tick (deadline signals, smoke windows) | a concern |
+
+### Install
+
+Vendor `src/anytime_todo` next to the engine (`<agent-repo>/anytime_todo`)
+and list it in `mentat.json` `components.engine.plugins` (no mentat.json:
+`ANYTIME_PLUGINS=anytime_todo`). 
+
+Configuration (first wins; no api or no handle = the pack is off and silent):
+
+| Setting | Source |
+|---|---|
+| api | `TODO_API` (e.g. `https://admin.example/api/todo/v1`), else `.mentat/local.json` `admin.url` + `/api/todo/v1` when `mentat.json` `components.admin.plugins` lists `todo` |
+| handle | `TODO_HANDLE`, else `mentat.json` `components.engine.todo_handle` |
+| token | `TODO_TOKEN_FILE` (only the token, mode 0600, refused otherwise), else `$<admin.token_env>` or that key in the repo's `.env` |
+
+The token needs the `todo:write` scope, and the agent needs a todo principal
+mapped to that token (mentat-admin `docs/plugins/todo/INSTALL.md`).
+
+### What a tick does
+
+`GET /tasks?ball=<handle>&status=open&due_before=<UTC date + 14 h>` (the latest
+local date anywhere; the exact check is per task), with `X-Mentat-Token` and a
+custom `User-Agent` (Cloudflare refuses the Python default with 403). A task is
+due when, on its own `tz` wall clock (default Europe/Budapest), `due_date` has
+passed or is today and `due_time` (if set) has been reached. A skipped time
+(spring) fires at the jump; a repeated hour (autumn, 2026-10-25) fires on its
+first pass and never an hour early.
+
+Each due occurrence `(task id, due_date)` lands in one bucket of the
+`todo_esedekes` plan entry, from the receipts the CLI wrote:
+
+| Receipts | Bucket | The agent |
+|---|---|---|
+| none | `due` | start, do the work, done |
+| `worked` | `complete_pending` | only `done` again, never the work |
+| `started`, nothing after | `interrupted` | checks whether it happened; unsure + outbound effect = note, no repeat |
+| `held` younger than `ANYTIME_TODO_RETRY_HOURS` (6) | (none) | waits; the comment says why |
+
+Steps before a `completed` receipt are history: the same task open again on the
+same date was reopened by someone, and is owed afresh.
+
+### The executor CLI
+
+```bash
+python3 -m anytime_todo.cli list                          # what is owed now, read only
+python3 -m anytime_todo.cli start <id> --due D            # before the work
+python3 -m anytime_todo.cli done  <id> --due D [--rev N]  # ONLY after the work
+python3 -m anytime_todo.cli note  <id> --due D --text T   # cannot do it now
+```
+
+`done` writes the `worked` receipt first, then `POST /tasks/<id>/complete
+{expected_rev}`. Exit 0 = completed; exit 3 = the work is recorded but the
+completion did not land (API down, not configured), and the next tick lists it
+as `complete_pending`. A 409 is resolved by the occurrence's date: if the
+`current` task is no longer open on `D`, this occurrence is already closed (a
+lost answer, or a human) and nothing more is sent; still open on `D` = only the
+rev moved, one retry with the current rev. That retry cannot complete the next
+occurrence, because completing moves `due_date`.
+
+`note` posts a comment (`POST /tasks/<id>/comments {body, expected_rev}`, one
+retry on 409) and only then records `held`. A failed comment holds nothing.
+
+Receipts are the engine's receipts file (`delivered:todo:<id>:<due>:<step>`),
+fsynced and append-only, so a lost or restored state never repeats a run.
+
+### API errors
+
+Never an exception into the tick. A failure (HTTP error, unreachable, a bad
+token file) is a backoff in the state cache (5, 10, 20, 40, then 60 minutes
+between attempts) and a `[anytime_todo]` line on stderr; while it lasts there
+is no plan entry. An outage longer than `ANYTIME_TODO_ALERT_HOURS` (6) plans one
+entry per day asking the agent to tell the owner, marked with
+`tick --mark delivered:todo-outage:<date>` after a confirmed send.
+
+### Migrating a cron job or a cadence concern
+
+1. Create the todo: the title is the duty, the description is the full
+   instruction (what, for whom, which approvals apply), `repeat_rule` the
+   cadence (`daily`, `weekdays`, `weekly:mon`, `monthly:1`, `monthly:last`...),
+   `due_date` the next run, `due_time` + `tz` if the hour matters, the agent's
+   handle as owner or assignee. Use a stable `idem_key`.
+2. Run `python3 -m anytime_todo.cli list` and check that the duty shows up when
+   it should.
+3. Remove the old cron line or concern in the same change, so the duty does not
+   run twice.
 
 ## Upgrading from 0.2.x
 

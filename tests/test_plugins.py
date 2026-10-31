@@ -4,7 +4,7 @@
 A concern pack is a Python package INSIDE the agent repo. Its __init__.py
 declares itself:
 
-    ANYTIME_PLUGIN = {"name": "example", "engine": ">=0.3,<0.4"}
+    ANYTIME_PLUGIN = {"name": "example", "engine": ">=0.4,<0.5"}
 
 and its direct submodules self-register concerns / providers / @actions on
 import. Loading (ANYTIME_PLUGINS, --plugins) refuses: a package outside the

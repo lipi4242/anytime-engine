@@ -2,7 +2,7 @@
 
 A pack is a Python package inside the agent repo. Its `__init__.py` declares
 
-    ANYTIME_PLUGIN = {"name": "cases", "engine": ">=0.3,<0.4"}
+    ANYTIME_PLUGIN = {"name": "cases", "engine": ">=0.4,<0.5"}
 
 and each direct submodule self-registers concerns, providers and @actions on
 import. `load()` refuses — before importing any submodule — a package outside
@@ -51,7 +51,7 @@ def _declaration(pkg_name: str, module) -> PluginInfo:
                           f"([a-z][a-z0-9_-]*), got {decl!r}")
     spec = decl.get("engine")
     if not isinstance(spec, str):
-        raise PluginError(f"{pkg_name}: ANYTIME_PLUGIN['engine'] must be a range like '>=0.3,<0.4'")
+        raise PluginError(f"{pkg_name}: ANYTIME_PLUGIN['engine'] must be a range like '>=0.4,<0.5'")
     try:
         ok = versions.satisfies(__version__, spec)
     except ValueError as e:

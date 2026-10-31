@@ -8,7 +8,8 @@
 `anytime_engine.setup` records it as components.engine.exec, so a tick without
 --exec runs it. The plan comes on stdin (or --plan FILE). Channel: mentat.json
 components.engine.delivery.channel — `file` (default: <dir>/<date>.md, dir
-default data/outbox) or `telegram` (telegram.py; held in quiet hours, quiet.py). Exit 1 when a send was not
+default data/outbox) or `telegram` (telegram.py; held in quiet hours, quiet.py).
+An active outward hold (anytime_engine.hold) turns a run into --preview. Exit 1 when a send was not
 confirmed: that tick does not land, and the message stays owed.
 Other concerns in the plan are not this executor's; they are named on stderr.
 """
@@ -23,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from anytime_engine import config, engine_manifest, tick
+from anytime_engine import config, engine_manifest, hold, tick
 
 from . import acceptance, delivery, quiet, telegram
 from .messages import listed as _listed, messages as _messages
@@ -56,6 +57,11 @@ def run(plan: dict[str, Any], *, preview: bool = False) -> int:
     cfg = _settings()
     day = str(plan.get("timestamp", ""))[:10]
     done, failed, covered = delivery.delivered(), 0, set()
+    held = None if preview else hold.active(root=root)
+    if held:   # a manual run while a developer builds into this agent: show, never send
+        print(f"[deliver] {hold.banner(held)} — csak előnézet, semmi nem megy ki",
+              file=sys.stderr)
+        preview = True
     if (not preview and cfg.get("channel") == "telegram" and plan.get("timestamp")
             and quiet.is_quiet(engine_manifest.section().get("quiet_hours"),
                                datetime.fromisoformat(plan["timestamp"]))):

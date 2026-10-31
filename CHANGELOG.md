@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.0
+
+Released together with brain and fleet 0.4.0. **Breaking only if you wrote your own
+concern pack**: widen its engine range first (see Changed).
+
+### Added
+- **Recurring duties are repeating todos**: the new `anytime_todo` pack reads the agent's due
+  todos from the Mentat Admin todo list on every tick, and the todo's title and description are
+  the instruction. It needs the Mentat Admin todo plugin, which is not public yet: without it the
+  pack does nothing and recurring duties stay where they are today. A todo is due when its date
+  has passed, or it is today and its time has come, in the todo's own time zone (daylight-saving
+  changes included). The agent closes a todo only
+  after the work is done (`python3 -m anytime_todo.cli list | start | done | note`): work that
+  started but never finished comes back to be checked first, never blindly repeated, and what
+  cannot be done gets a comment on the todo instead of a silent skip. When the todo list cannot
+  be reached the pack backs off and, if the outage lasts, tells the owner once a day. With no todo
+  list or handle configured it does nothing. Install by copying `src/anytime_todo` next to the
+  engine; the steps are in GUIDE.md. <!-- cap: todo-pack -->
+- **Outward hold**: while a hold is set (`data/state/kifele-tartas.json`, written by the fleet's
+  `hold-outward`), every tick is a dry run: nothing is executed, no state or timestamp is saved,
+  a manual delivery only shows a preview, and the Telegram sender refuses to send. So an agent
+  can be built or tested next to its live copy without a real message going out. A hold ends at
+  its `until`, and never later than 24 hours after it was set; an unreadable hold file also holds,
+  for at most 24 hours. <!-- cap: outward-hold -->
+
+### Changed
+- **Packs move to the 0.4 engine**: the bundled packs (cases, bekotes, todo) now declare
+  `">=0.4,<0.5"`. A pack of your own that still declares `">=0.3,<0.4"` is refused by the 0.4
+  engine with a message that names the range; change it to, for example, `">=0.3,<0.5"`, then
+  re-sync. <!-- cap: pack-range-04 -->
+
 ## 0.3.1
 
 Released together with the Mentat brain 0.3.1 and fleet 0.3.1. Not breaking.
@@ -27,6 +58,10 @@ Released together with the Mentat brain 0.3.1 and fleet 0.3.1. Not breaking.
   a server or the fleet that runs the tick); a handwritten `due:` in a case is read as an alias of
   `due_at`; the README's install clones the release tag instead of the default branch.
   <!-- cap: setup-no-timer -->
+
+### Fixed
+- **Saved times with a time-zone offset**: a state that holds them reads back cleanly, so the
+  tick keeps running. <!-- cap: aware-timestamps -->
 
 ## 0.3.0 — 2026-10-22
 

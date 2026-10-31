@@ -1,16 +1,17 @@
 {
   "component": "anytime-engine",
-  "version": "0.3.1",
-  "date": "2026-10-25",
+  "version": "0.4.0",
+  "date": "2026-10-31",
   "severity": "minor",
   "security": false,
-  "breaking": false,
+  "breaking": true,
   "migrations_from": [
     "0.3"
   ],
   "you_need_to": [
+    "If you wrote your own concern pack, widen its ANYTIME_PLUGIN engine range to include 0.4 (for example \">=0.3,<0.5\") first: the 0.4 engine refuses a pack whose range stops at 0.4.",
     "Re-sync: ./anytime-engine/sync-to.sh <your-repo> (add the packs you use), then python3 -m anytime_engine.selftest."
   ],
-  "changelog": "CHANGELOG.md#031",
+  "changelog": "CHANGELOG.md#040",
   "requires_if_present": {}
 }

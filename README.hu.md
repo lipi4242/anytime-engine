@@ -27,21 +27,29 @@ A legegyszerűbb: kérd meg a Mentat-kollégádat, hogy adja hozzá a motort, ő
 
 ```
 Telepítsd az anytime engine-t (github.com/lipi4242/anytime-engine) ebbe a repóba. Futtasd pontosan ezt:
-  git clone --depth 1 --branch v0.3.1 https://github.com/lipi4242/anytime-engine /tmp/anytime-engine
+  git clone --depth 1 --branch v0.4.0 https://github.com/lipi4242/anytime-engine /tmp/anytime-engine
   /tmp/anytime-engine/sync-to.sh . --pack cases
   python3 -m anytime_engine.selftest -q
 Utána kérdezd meg az időzónámat, és hogy hová menjenek az emlékeztetők (fájl vagy Telegram), és futtasd:
 python3 -m anytime_engine.setup --tz <tz> --deliver <file|telegram> --lang hu, az igenem után --install-lal.
 ```
 
+## Rendszeres feladat = ismétlődő todo
+
+Ehhez a Mentat Admin todo plugin kell, ami még nem nyilvános. Nélküle az `anytime_todo` csomag nem csinál semmit, és a rendszeres feladatok maradnak ott, ahol most vannak (cron-sor vagy concern).
+
+Ha az ágensnek valamit rendszeresen meg kell csinálnia (heti emlékeztető, reggeli kör, havi ellenőrzés), az egy ismétlődő todo a Mentat Admin todo listájában, nem cron-sor és nem saját concern. Az `anytime_todo` csomag minden tickben lekéri az ágensnek kiosztott, esedékes todókat, és a terv elmondja az ágensnek, mi a dolga: a todo címe és leírása maga az utasítás. A todót az ágens csak akkor zárja le, amikor a munka tényleg megtörtént; ismétlődő todónál a lezárás a következő dátumra viszi, tehát az időzítést a todo végzi. Amit nem tud megcsinálni, azt nyitva hagyja, és megjegyzésben leírja, miért.
+
+Cron vagy concern akkor kell, ha a feladatot külső esemény indítja (új levél, webhook, naptárváltozás), vagy minden tickben determinisztikus számítás kell hozzá. Minden más fix ütemű feladat todo.
+
+Egy meglévő cron-feladat átköltöztetése: hozd létre a todót (cím, teljes utasítás a leírásban, `repeat_rule` az ütemhez, következő dátum, ha számít az óra, `due_time` és `tz`, gazdának vagy felelősnek az ágens), nézd meg `python3 -m anytime_todo.cli list`-tel, hogy megjelenik, és ugyanabban a lépésben töröld a régi cron-sort, hogy ne fusson kétszer. A beállítás (`TODO_API`, `TODO_HANDLE`, `TODO_TOKEN_FILE`) és a részletek: [GUIDE.md](GUIDE.md).
+
 ## Képesség-napló
 
 A legújabb bejegyzések:
 
-- Határidők közvetlenül táblázatból
-- Az ütemezett üzenet csak akkor megy ki, ha egyezik a jóváhagyottal
-- Szól, ha valaki kézzel átírta az időzítőjét
-- Gyorsabb telepítés
+- A rendszeres feladatok ismétlődő teendőként jönnek (a Mentat Admin todo plugin kell hozzá, ami még nem nyilvános)
+- Szüneteltethető, így építés közben semmi nem megy ki
 
 Kiadási jegyzetek és frissítési lépések (angolul): [CHANGELOG.md](CHANGELOG.md). Minden változás a teljes csomagban: [képesség-napló](https://github.com/lipi4242/mentat-ai-bootstrap/blob/main/CAPABILITY-LOG.hu.md).
 

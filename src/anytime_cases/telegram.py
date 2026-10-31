@@ -21,6 +21,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from anytime_engine import hold
+
 from .admin import _dotenv
 
 TIMEOUT_S = 60
@@ -57,6 +59,9 @@ def _checked(path: str) -> str:
 
 
 def send(root: Path, text: str) -> None:
+    held = hold.active(root=root)   # the last gate before a phone: no caller can bypass it
+    if held:
+        raise SendError(hold.banner(held))
     chat = secret(root, "TELEGRAM_CHAT_ID")
     if not chat:
         raise SendError("TELEGRAM_CHAT_ID is not set: message the bot, then run "

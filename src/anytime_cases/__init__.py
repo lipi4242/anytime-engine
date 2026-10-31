@@ -15,4 +15,4 @@ default. `sync-to.sh <agent-repo> --pack cases` copies it next to
 Rules: docs/concern-packs.md (the pack contract) and docs/cases-pack.md.
 """
 
-ANYTIME_PLUGIN = {"name": "cases", "engine": ">=0.3,<0.4"}
+ANYTIME_PLUGIN = {"name": "cases", "engine": ">=0.4,<0.5"}

@@ -19,4 +19,4 @@ in plain Python, what changed in the business's sources since the last ingest:
 Rules: docs/concern-packs.md (the pack contract), docs/bekotes-pack.md.
 """
 
-ANYTIME_PLUGIN = {"name": "bekotes", "engine": ">=0.3,<0.4"}
+ANYTIME_PLUGIN = {"name": "bekotes", "engine": ">=0.4,<0.5"}

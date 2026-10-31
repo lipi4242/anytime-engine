@@ -27,21 +27,29 @@ Easiest: ask your Mentat colleague to add the engine; it runs these steps for yo
 
 ```
 Install the anytime engine (github.com/lipi4242/anytime-engine) into this repo. Run exactly:
-  git clone --depth 1 --branch v0.3.1 https://github.com/lipi4242/anytime-engine /tmp/anytime-engine
+  git clone --depth 1 --branch v0.4.0 https://github.com/lipi4242/anytime-engine /tmp/anytime-engine
   /tmp/anytime-engine/sync-to.sh . --pack cases
   python3 -m anytime_engine.selftest -q
 Then ask me my timezone and where reminders should go (a file or Telegram), and run
 python3 -m anytime_engine.setup --tz <tz> --deliver <file|telegram>, with --install once I say yes.
 ```
 
+## Recurring duty = repeating todo
+
+This needs the Mentat Admin todo plugin, which is not public yet. Without it the `anytime_todo` pack does nothing, and recurring duties stay where they are today (a cron job or a concern).
+
+A duty the agent does on a fixed cadence (weekly reminder, morning round, monthly check) is a repeating todo in the Mentat Admin todo list, not a cron line and not a concern of its own. The `anytime_todo` pack reads the agent's due todos on every tick; the todo's title and description are the instruction. The agent completes the todo only after the work really happened, and completing a repeating todo moves it to its next date, so the todo is the schedule. What it cannot do stays open with a comment saying why.
+
+Use a cron job or a concern only for work driven by an external event (new e-mail, a webhook, a calendar change) or that needs deterministic computation every tick.
+
+To migrate a cron job: create the todo (title, the full instruction as description, `repeat_rule`, the next date, `due_time` + `tz` if the hour matters, the agent as owner or assignee), check it with `python3 -m anytime_todo.cli list`, and remove the cron line in the same step so it does not run twice. Settings (`TODO_API`, `TODO_HANDLE`, `TODO_TOKEN_FILE`) and details: [GUIDE.md](GUIDE.md).
+
 ## Feature log
 
 Newest entries:
 
-- Deadlines straight from a spreadsheet
-- Scheduled messages go out only when they match what you approved
-- Tells you if its timer was changed by hand
-- Faster install
+- Recurring duties come as repeating todos (needs the Mentat Admin todo plugin, not public yet)
+- Can be paused so nothing goes out while you build
 
 Release notes and upgrade steps: [CHANGELOG.md](CHANGELOG.md). Every change across the kit: [capability log](https://github.com/lipi4242/mentat-ai-bootstrap/blob/main/CAPABILITY-LOG.md).
 

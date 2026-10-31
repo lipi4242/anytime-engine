@@ -19,6 +19,8 @@ engine:
   clock         the agent's local time (components.engine.timezone / ANYTIME_TZ)
   tick          the tick entry point a scheduler calls; writes the fleet
                 stamps (heartbeat + last-tick.json) only after the work
+  hold          the outward hold (kifelé-tartás): data/state/kifele-tartas.json
+                makes every tick a dry run and stops every send
   schedule      durable schedule recipe (systemd user timer / cron line)
   setup         after sync-to.sh, one command: timezone, delivery, selftest, timer
   selftest      the engine's own tests, stdlib, one exit code
@@ -33,4 +35,4 @@ Consumer repos vendor a copy via `sync-to.sh` — never edit the vendored copy
 directly.
 """
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
